@@ -1,0 +1,62 @@
+---
+
+#ECL 298 Prediction 
+#Name: Priska Ciptaningsih
+#Homework 1: Regression and Cross Validation
+#Assignment Details: Please write an R script that shows a form of regression and *k*-fold cross-validation 
+#using one of the example data sets from ISLR (or another dataset that is easily accessible with your code)
+---
+
+```{r setup, include=FALSE}
+# Load required package
+library(boot)
+```
+
+
+```{r}
+data(airquality)
+```
+
+
+```{r}
+head(airquality)
+```
+
+```{r}
+summary(airquality)
+```
+```{r}
+#We have missing value here with the ozone and solar.R variable
+airquality <- na.omit(airquality)
+nrow(airquality)
+```
+
+```{r}
+#make a regression model with the outcome ozone, and the predictors temperature and wind (multivariate)
+glm.fit <- glm(Ozone ~ Temp + Wind, data = airquality)
+```
+
+```{r}
+#check the summary
+summary(glm.fit)
+```
+
+```{r}
+set.seed(123)
+
+cv.error <- cv.glm(
+  data = airquality,
+  glmfit = glm.fit,
+  K = 10
+)
+
+cv.error
+```
+
+```{r}
+cv.mse <- cv.error$delta[1]
+cv.rmse <- sqrt(cv.mse)
+
+cv.mse
+cv.rmse
+```
