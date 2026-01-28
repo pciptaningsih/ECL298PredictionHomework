@@ -1,0 +1,332 @@
+---
+title: "ECL Project Assignment - Chronic Kidney Disease in Cats"
+output: html_document
+date: "2026-01-27"
+---
+
+```{r}
+#install necesarry packages
+install.packages("gtsummary")
+install.packages("car")
+install.packages("sjPlot")
+install.packages("tidyr")
+install.packages("ggplot2")
+install.packages("dplyr")
+install.packages("broom")
+install.packages("purrr")
+install.packages("cardx")
+install.packages("MASS")
+install.packages("pROC")
+```
+
+```{r}
+library(gtsummary)
+library(car)
+library(sjPlot)
+library(tidyr)
+library(ggplot2)
+library(dplyr)
+library(broom)
+library(purrr)
+library(cardx)
+library(MASS)
+library(gt)
+library(pROC)
+```
+Data title: Chronic Kidney Disease in Cats 
+Source: VetCompass Study 
+
+Data Exploration and Data Cleaning
+
+Summary of data cleaning: As observed from the Chronic Kidney Disease Cats Risk dataset, which is in wide format, 1250 observations and 44 columns were observed. The outcome variable is "Case" with output values of Case and Control, with an equal count of 625 observations for each case and control. This outcome variable was changed to 0 (control) and 1 (case) for further analysis. The variables that consisted of space were then modified to use underscore "_" for easier analysis. Based on the structure of the original data, the modes that initially in characters and logic were also changed into factor format. And due to a tricky output value of "Age" variable, the value "9?" was changed to "≥9", as referred to the prior study published.
+
+For detailed process and desicions made, see codes and texts below
+```{r}
+#Read the original file 
+CKD_Cats <- read.csv("/Users/priskaciptaningsih/Desktop/Winter 2026/ECL298 Prediction/ECL298/ECL298PredictionHomework/Chronic_kidney_disease_cats_risk.csv")
+```
+
+
+```{r}
+#observed the head of CKD_Cats
+head(CKD_Cats)
+```
+
+```{r}
+#check the variables name 
+str(CKD_Cats)
+```
+
+```{r}
+#check the structure of the variables, identified any missing data. 
+summary (CKD_Cats)
+```
+
+DATA CLEANING PROCESS:
+- Based on the result code above, we have 44 columns (1 ID, 1 case column as the outcome, and 42 other possible covariates) and 1250 rows/observation.
+- By looking at the structure, this data is in wide format where we have one observation per row.
+- The original data mainly in character and logic format, which we should change to factors.
+- Based on the outcome column of 'Case', the value consists of case and control. And we can consider that this study is case-control study.
+- The names of variable consist of "space", I might change the space to "_" for better analysis
+
+
+```{r}
+#Change the "space" in variable names to "_" for easier analysis
+names(CKD_Cats) <- gsub(".", "_", names(CKD_Cats), fixed = TRUE)
+```
+
+```{r}
+#Check if the names are changed or not
+head(CKD_Cats)
+```
+
+```{r}
+#Lets see how many the case and control are in the study
+table(CKD_Cats$Case, useNA = "ifany")
+```
+
+There are balanced case and control, 625 for each case and control
+Because the outcome variable "Case" is binary (case and control), lets change it to a binary outcome of 0 and 1 (1 for case and 0 for control)
+
+```{r}
+#Change the outcome of case and control to 1 and 0, respectively
+CKD_Cats$Case <- ifelse(CKD_Cats$Case == "Case", 1, 0)
+```
+
+```{r}
+#Check if the outcome of case and control changed into 1 and 0, respectively
+table(CKD_Cats$Case)
+```
+
+From the original data, we found that the age variable is a bit confusing because we have "?9", which I assume that "?9" is ≥9 as referred to the original published data (Chronic kidney disease in cats attending primary care practice in the UK: a VetCompassTM study, by Conroy et al 2019). So, lets change the "?9" to "≥9"
+
+```{r}
+CKD_Cats$Age <- ifelse(CKD_Cats$Age == "?9", "≥9", CKD_Cats$Age)
+```
+
+```{r}
+#check of the previous code worked
+table(CKD_Cats$Age) 
+```
+
+Okay, it worked, but some consist of missing data 
+
+As observed from the data structure, most all the covariates used character and logic format, and let's change those into factors for further logistic regression analysis
+
+```{r}
+# Convert all logical (TRUE/FALSE) variables to factor
+CKD_Cats[sapply(CKD_Cats, is.logical)] <-
+  lapply(CKD_Cats[sapply(CKD_Cats, is.logical)], as.factor)
+
+# Convert all character  variables to factor
+CKD_Cats[sapply(CKD_Cats, is.character)] <-
+  lapply(CKD_Cats[sapply(CKD_Cats, is.character)], as.factor)
+```
+
+```{r}
+#check if the format changed to factors
+str(CKD_Cats)
+```
+
+```{r}
+#Lets check the result, and observe the data structure again.
+summary(CKD_Cats)
+```
+
+DATA EXPLORATION
+
+Summary for Data Exploration: The orginal dataset has 1250 observations and 44 columns, with one column of the cat ID, one column as the outcome variable of "Case", and the remaining 42 columns as the possible covariates, including the demographic factors and various types of comorbidities. Covariates that explain the demographic (Age, Breed, and Sex) and various comorbidities were included in the study. Due to missing values for some of the variables, I excluded covariate that has more than 40% of the output missing/none recorded, or not tested, to minimize any result bias. The result remained with 15 possible covariates, three as the demographic factors (Age, Breed, and Sex), and 12 comorbidities covariates.
+
+From the selected covariates, 16 observations (1.3%) of the Age covariate were missing with 8 observations from each case and control group. Twenty-one observations (1.7%) were unknown from the Breed variable (8 from case and 13 from control), and 7 observations missing (0.6%) from the Sex variable (3 from case and 4 from control). All the missing data from those observation were excluded from the study. We also had a tricky output of "2" for the urethral obstruction variable, which then removed from the observation, which resulted 1205 observations remaining in the study.
+
+For detailed process and decision made, see codes and texts below:
+
+See how the distribution of output for each variable, and see how many proportion of missing data as consideration of further analysis
+
+```{r}
+summary_table_overall <- CKD_Cats %>%
+  tbl_summary(
+    missing = "ifany",  # show missing counts
+    statistic = list(
+      all_categorical() ~ "{n} ({p}%)",  # count and percent for factors
+      all_continuous() ~ "{mean} ± {sd}" # for any numeric vars
+    )
+  ) %>%
+  modify_header(label ~ "**Variable**") %>%
+  bold_labels()
+```
+
+```{r}
+summary_table_overall
+```
+As observed from the summary table above, covariates that have missing data >40% (or none recorded or not tested) were excluded from the study to minimize bias result
+
+It resulted with 15 covariates, 3 as the demographic factors (Age, Breed, ans Sex), and 12 comorbidities (Hyperthyroidism, Periodontal disease, arthritis, cystitis/FLUTD, cardiomyopathy, retinopathy, cat bite abscess, hepatopathy, obesity, constipation, diabetes mellitus, and urethral obstruction).
+
+Next, a new dataset containing only those covariates were made
+
+```{r}
+#Make a new dataset consisting only of the selected covariates mentioned above
+
+selected_variable = c("Case", "Breed", "Age", "Sex", "Hyperthyroidism", "Periodontal_disease", "Arthritis",
+                    "Cystitis_FLUTD", "Cardiomyopathy", "Retinopathy", "Cat_bite_abscess", "hepatopathy", "obesity",
+                    "constipation", "Diabetes_Mellitus", "Urethral_obstruction")
+
+CKD_selected = CKD_Cats[, selected_variable]
+```
+
+```{r}
+#check the structure and summary of the data
+str(CKD_selected)
+summary(CKD_selected)
+```
+
+Now, lets see the distribution of output variable across case and control as the descriptive statistic:
+
+```{r}
+tbl <- CKD_selected %>%
+  tbl_summary(
+    by = Case,
+    missing = "ifany",
+    statistic = list(
+      all_categorical() ~ "{n} ({p}%)",
+      all_continuous() ~ "{mean} ± {sd}"
+    )
+  ) %>%
+  add_p() %>%
+  modify_header(label ~ "**Variable**") %>%
+  bold_labels()
+```
+
+```{r}
+tbl
+```
+
+- Based on the table generated above, I still have 4 covariates that contained missing data/unknown/trick output.
+- Sex covariate has 7 (0.6%) observations missing, 3 from case and 4 from control
+- Breed covariates has 21 (1.7%) observations of known, 8 from case and 13 from control
+- Age covariate has 16 (1.3%) observations missing, 8 from each case and control
+- Urethral observation has 3 observation with wierd output "2"
+
+By looking at the distribution, the missing data or unknown result, those outcomes were not only from one level of case or control (they were from both case and control group).
+
+Therefore, the missing value, unknown, and weird output were excluded from the study.
+
+```{r}
+#Lets change the unknown for breed to NA
+CKD_selected$Breed[CKD_selected$Breed == "Unknown"] <- NA
+
+#Lets change the result "2" for Urethral_obstruction to NA
+CKD_selected$Urethral_obstruction[CKD_selected$Urethral_obstruction == "2"] <- NA
+```
+
+```{r}
+summary(CKD_selected)
+```
+
+```{r}
+#I make a new dataset with excluding the observation with missing value -- CKD_selected_clean
+CKD_selected[CKD_selected == ""] <- NA  # turn blanks into NA
+CKD_selected_clean <- CKD_selected %>% drop_na()
+
+str(CKD_selected_clean)
+summary (CKD_selected_clean)
+```
+
+```{r}
+# Clean up unused levels in factor columns
+CKD_selected_clean <- droplevels(CKD_selected_clean)
+```
+
+```{r}
+# Check if the unused levels have already been dropped
+levels(CKD_selected_clean$Breed)
+levels(CKD_selected_clean$Age)
+levels(CKD_selected_clean$Sex)
+```
+
+After removing the observations with missing data, there are 1205 observations remain in the study, with 15 possible covariates to analyze.
+
+```{r}
+#check the head of the data of CKD_selected_clean
+head(CKD_selected_clean)
+```
+
+First, lets check the distribution of the output value for each covariates (without the distribution of case and control), see the html table below
+
+```{r}
+CKD_clean_summary_overall <- CKD_selected_clean %>%
+  tbl_summary(
+    missing = "ifany",  # show missing counts
+    statistic = list(
+      all_categorical() ~ "{n} ({p}%)",  # count and percent for factors
+      all_continuous() ~ "{mean} ± {sd}" # for any numeric vars
+    )
+  ) %>%
+  modify_header(label ~ "**Variable**") %>%
+  bold_labels()
+```
+
+```{r}
+CKD_clean_summary_overall
+```
+
+The graphs of the distribution of output for each covariate (without distribution of case and control)
+
+```{r}
+# Gather data into long format for plotting
+long_data <- CKD_selected_clean %>%
+  pivot_longer(cols = -Case, names_to = "Variable", values_to = "Value")
+
+# Plot all covariate distributions
+ggplot(long_data, aes(x = Value, fill = Value)) +
+  geom_bar() +
+  facet_wrap(~ Variable, scales = "free_x", ncol = 3) +
+  labs(title = "Distribution of Covariate Values",
+       x = "Category", y = "Count") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        legend.position = "none")
+```
+
+```{r}
+#After I have only 1205 observation remaining, lets see the count for each case and control
+table(CKD_selected_clean$Case)
+```
+
+Originally, I have 625 observation for each case and control. After eliminating rows with missing value, I have 599 controls and 606 cases.
+
+Afterwards, lets see the distribution of output variable across case and control
+
+```{r}
+#See the distribution of output variable across Case and Control
+CKD_clean_table <- CKD_selected_clean %>%
+  tbl_summary(by = Case) %>%
+  add_p()
+```
+
+```{r}
+CKD_clean_table
+```
+
+Make the graphs of the distribution of output variable across case and control
+
+```{r}
+# Select covariates (excluding ID and Case)
+covariates <- setdiff(names(CKD_selected_clean), c("Case"))
+
+long_data <- CKD_selected_clean %>%
+  pivot_longer(cols = all_of(covariates), names_to = "Variable", values_to = "Value") %>%
+  mutate(Value = as.factor(Value),
+         Case = as.factor(Case))  # This is crucial
+
+# Plot with grouping by Case
+ggplot(long_data, aes(x = Value, fill = Case)) +
+  geom_bar(position = "dodge") +
+  facet_wrap(~ Variable, scales = "free_x", ncol = 3) +
+  labs(title = "Distribution of Covariates by CKD Case Status",
+       x = "Covariate Category", y = "Count", fill = "CKD Status") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
