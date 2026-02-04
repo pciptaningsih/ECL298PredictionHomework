@@ -1,0 +1,63 @@
+---
+title: "Random Forest Assignment - ECL298 Prediction"
+output: html_document
+date: "2026-02-04"
+---
+
+```{r}
+install.packages("randomForest")
+```
+
+
+```{r}
+library(randomForest)
+```
+
+
+```{r}
+summary(CKD_selected_clean)
+```
+
+```{r}
+head(CKD_selected_clean)
+```
+
+```{r}
+str(CKD_selected_clean)
+```
+
+```{r}
+CKD_selected_clean$Case <- factor(
+  CKD_selected_clean$Case,
+  levels = c(0, 1),
+  labels = c("Control", "CKD")
+)
+```
+
+```{r}
+summary(CKD_selected_clean)
+```
+
+```{r}
+set.seed(123)
+
+rf_ckd <- randomForest(
+  Case ~ .,
+  data = CKD_selected_clean,
+  ntree = 500,        
+  mtry = 4,
+  importance = TRUE
+)
+
+print(rf_ckd)
+
+```
+
+```{r}
+plot(rf_ckd)
+```
+
+```{r}
+varImpPlot(rf_ckd)
+```
+
