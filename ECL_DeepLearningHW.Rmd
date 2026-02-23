@@ -58,7 +58,7 @@ library(keras3)
 ## reticulate::use_condaenv(condaenv = "r-tensorflow")
 ```{r}
 modnn <- keras_model_sequential(input_shape = ncol(x)) |>
-    layer_dense(units = 50, activation = "relu") |>
+    layer_dense(units = 10, activation = "relu") |>
     layer_dropout(rate = 0.4) |> 
   	layer_dense(units = 1)
 
@@ -70,8 +70,8 @@ compile(modnn, loss = "mse", optimizer = optimizer_rmsprop(),
 ### this one takes a while (1500 epochs!)
 history <- fit(modnn, x[-testid, ], y[-testid], epochs = 1500, 
          batch_size=32, validation_data=list(x[testid, ], y[testid]))
-
-
+```
+```{r}
 npred <- predict(modnn, x[testid, ])
 mean(abs(y[testid] - npred))
 ```
@@ -237,7 +237,7 @@ model <- application_resnet50(weights = "imagenet")
 summary(model)
   
 pred6 <- predict(model, x) |>
-   imagenet_decode_predictions(top = 3)
+   imagenet_decode_predictions(top = 5)
 names(pred6) <- basename(image_files)
 print(pred6)
 ```
